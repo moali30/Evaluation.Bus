@@ -540,6 +540,8 @@
             justify-content: space-between;
             align-items: flex-end;
             color: #212121;
+            /* -- تعديل: إضافة هذا السطر لمنع كسر الفوتر -- */
+            page-break-inside: avoid !important;
         }
         
         .footer-text { flex: 1; text-align: center; }
@@ -565,35 +567,8 @@
         /* ============== نهاية الجزء 3 ============== */
 
         /* ============== الجزء 4: أنماط خاصة بالطباعة والتجاوب مع الشاشات ============== */
-        @media print {
-            * {
-                -webkit-print-color-adjust: exact !important;
-                color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-            @page { size: A4; margin: 15mm; }
-            body { margin: 0 !important; padding: 0 !important; background: white !important; font-size: 12pt !important; }
-            
-            .main-container > *:not(.report-container), .app-header, .container:not(.report-container), .actions, .loading {
-                display: none !important;
-            }
-            .report-container { display: block !important; }
-            .report-page { 
-                width: 100% !important; 
-                height: 296mm !important;
-                margin: 0 !important; 
-                padding: 0 !important; 
-                box-shadow: none !important; 
-                page-break-after: always !important;
-                background: white !important;
-                border: none !important;
-            }
-            .report-page:last-child { page-break-after: auto !important; }
-
-            .chart-wrapper {
-                page-break-inside: avoid;
-            }
-        }
+        
+        /* -- تم حذف قسم @media print بالكامل من هنا لأنه يتعارض مع وظيفة زر الطباعة -- */
         
         @media (max-width: 768px) {
             .main-container { padding: 10px; }
@@ -1050,7 +1025,7 @@
             function createTablePages() {
                 let remainingResults = [...reportData.results];
                 let pageCounter = 1;
-                const FOOTER_RESERVED_SPACE = 180;
+                const FOOTER_RESERVED_SPACE = 220; // تم زيادة المساحة المحجوزة
 
                 // -- إصلاح: التأكد من عدم إنشاء صفحة جدول إذا كانت النتائج فارغة --
                 if (remainingResults.length === 0) {
@@ -1110,7 +1085,7 @@
             function createAxesPages() {
                 let remainingAxes = [...reportData.axes];
                 let pageCounter = 1;
-                const FOOTER_RESERVED_SPACE = 180;
+                const FOOTER_RESERVED_SPACE = 220; // تم زيادة المساحة المحجوزة
 
                 while (remainingAxes.length > 0) {
                     const page = createReportPage();
@@ -1315,6 +1290,8 @@
                     return;
                 }
                 loadingElement.style.display = 'flex';
+                
+                // استبدال الرسوم البيانية بصور
                 const canvases = reportContainer.querySelectorAll('canvas');
                 const images = [];
                 for (const canvas of canvases) {
@@ -1324,28 +1301,121 @@
                     canvas.style.display = 'none';
                     canvas.parentNode.insertBefore(image, canvas.nextSibling);
                 }
+                
+                // الانتظار للحظة لضمان تحميل الصور
                 await new Promise(resolve => setTimeout(resolve, 500));
+                
                 const printFrame = document.createElement('iframe');
                 printFrame.style.cssText = 'position: absolute; width: 0; height: 0; border: 0;';
                 document.body.appendChild(printFrame);
+                
                 const printDoc = printFrame.contentDocument || printFrame.contentWindow.document;
-                const styles = document.querySelector('style').innerHTML;
+                
+                // 1. جلب الخطوط
+                const fontLink = document.querySelector('link[href*="fonts.googleapis.com"]').outerHTML;
+                const faLink = document.querySelector('link[href*="font-awesome"]').outerHTML;
+
+                // 2. جلب الأنماط
+                let styles = document.querySelector('style').innerHTML;
+                
+                // 3. إزالة أنماط الشاشات الصغيرة (media query) المتعارضة
+                styles = styles.replace(/@media \(max-width: 768px\) \{[\s\S]*?\}/g, '');
+
                 printDoc.open();
                 printDoc.write(`
-                    <!DOCTYPE html><html lang="ar" dir="rtl"><head><title>طباعة التقرير</title><style>${styles}</style>
-                    <style>@page { size: A4; margin: 15mm; } body { margin:0; padding:0; background:white !important; -webkit-print-color-adjust: exact; } .report-page { box-shadow:none !important; border:none !important; margin:0; page-break-after: always; } .report-page:last-of-type { page-break-after: auto; }</style>
+                    <!DOCTYPE html><html lang="ar" dir="rtl"><head><title>طباعة التقرير</title>
+                    ${fontLink}
+                    ${faLink}
+                    <style>${styles}</style>
+                    <style>
+                        @page { 
+                            size: A4; 
+                            margin: 15mm; /* الهوامش الفعلية للطابعة */
+                        } 
+                        body { 
+                            margin: 0; 
+                            padding: 0; 
+                            background: white !important; 
+                            -webkit-print-color-adjust: exact; 
+                            color-adjust: exact; 
+                        } 
+                        .report-page { 
+                            box-shadow: none !important; 
+                            border: none !important; 
+                            margin: 0 !important; 
+                            padding: 0 !important; 
+                            width: 100% !important; 
+                            
+                            min-height: 265mm !important; 
+                            
+                            page-break-after: always; 
+                            display: flex; 
+                            flex-direction: column; 
+                        } 
+                        .report-page:last-of-type { 
+                            page-break-after: auto; 
+                        }
+                        
+                        .page-header, .report-footer, .chart-wrapper, .detailed-analysis, .manual-comment, .axis-comment {
+                            page-break-inside: avoid !important;
+                        }
+                        .report-footer {
+                            margin-top: auto; 
+                            page-break-before: auto; 
+                        }
+                        table {
+                            page-break-inside: auto; 
+                        }
+                        tr {
+                            page-break-inside: avoid; 
+                        }
+
+                        /* إخفاء واجهة التطبيق تماماً داخل الطباعة */
+                        .main-container > *:not(.report-container), .app-header, .container:not(.report-container), .actions, .loading {
+                            display: none !important;
+                        }
+                        .report-container {
+                            display: block !important;
+                            margin: 0 !important;
+                        }
+                        img, .logo, .signature-image { 
+                            max-width: 100% !important; 
+                            height: auto;
+                        }
+
+                        /* --- التعديل النهائي هنا --- */
+                        /* تحديد حجم صورة التوقيع في الطباعة */
+                        .signature-image {
+                            max-width: 80px !important;
+                            height: auto !important;
+                        }
+                        /* --- نهاية التعديل --- */
+
+                    </style>
                     </head><body>${reportContainer.innerHTML}</body></html>`);
                 printDoc.close();
-                printFrame.contentWindow.focus();
-                printFrame.contentWindow.print();
-                document.body.removeChild(printFrame);
-                images.forEach(item => {
-                    item.original.style.display = 'block';
-                    if (item.replacement.parentNode) {
-                        item.replacement.parentNode.removeChild(item.replacement);
+                
+                // الانتظار حتى يتم تحميل الإطار بالكامل
+                printFrame.onload = function() {
+                    try {
+                        printFrame.contentWindow.focus();
+                        printFrame.contentWindow.print();
+                    } catch (e) {
+                        console.error("Print failed:", e);
+                        alert("حدث خطأ أثناء محاولة الطباعة.");
+                    } finally {
+                        document.body.removeChild(printFrame);
+                        
+                        // إعادة الرسوم البيانية الأصلية
+                        images.forEach(item => {
+                            item.original.style.display = 'block';
+                            if (item.replacement.parentNode) {
+                                item.replacement.parentNode.removeChild(item.replacement);
+                            }
+                        });
+                        loadingElement.style.display = 'none';
                     }
-                });
-                loadingElement.style.display = 'none';
+                };
             }
 
             async function exportToPDF() {
